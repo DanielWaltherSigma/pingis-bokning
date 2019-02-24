@@ -1,6 +1,6 @@
-from database_models.models import *
+from models.db_models import *
 from datetime import date, timedelta, datetime
-from helpers import ActivityEnum
+from handling import ActivityEnum
 
 
 def recreate_tables():

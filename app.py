@@ -1,9 +1,10 @@
 import os
 from flask import Flask, jsonify, send_from_directory, request
 from flask_mail import Mail, Message
+from flask_restful import Api
 from db_connection.configuration import ip, mail_config
-from helpers import ActivityEnum, get_status_helper, check_whether_to_notify
-from database_models.models import *
+from handling import get_status, check_whether_to_notify, make_booking
+from models.db_models import *
 
 # Set up
 app = Flask(__name__, static_folder="build")
@@ -17,7 +18,7 @@ app.config.update(
     TEMPLATES_AUTO_RELOAD=True
 )
 mail = Mail(app)
-
+api = Api(app)
 
 @app.route("/api/status", methods=['GET'])
 def get_status():
@@ -26,8 +27,8 @@ def get_status():
     :return: json with latest status and whether there are reservations
     """
     to_return = {
-        "table_tennis": get_status_helper(ActivityEnum.TABLE_TENNIS.value),
-        "fussball": get_status_helper(ActivityEnum.FUSSBALL.value)
+        "table_tennis": get_status(SensorLookup.ActivityEnum.TABLE_TENNIS.value),
+        "fussball": get_status(SensorLookup.ActivityEnum.FUSSBALL.value)
     }
 
     return jsonify(to_return)
@@ -44,27 +45,9 @@ def after_request(response):
 @app.route("/api/book", methods=["POST"])
 def book_activity():
     data = request.get_json()
-    activity = data["activity"]
+    to_return = make_booking(data)
 
-    try:
-        email = data["email"]
-        status = get_status_helper(activity)
-        if status["sensor_status_occupied"] or len(status["reserved_list"]) > 0:
-            booking = Booking.create(activity=activity,
-                                     email=email,
-                                     expires=datetime.datetime.now() + datetime.timedelta(hours=4))
-        else:
-            booking = Booking.create(activity=activity,
-                                     email=email,
-                                     expires=datetime.datetime.now() + datetime.timedelta(minutes=5))
-        to_return = {
-            "activity": activity,
-            "booking_successful": True,
-            "expires": booking.expires
-        }
-        return jsonify(to_return)
-    except KeyError:
-        pass
+    return jsonify(to_return)
 
 
 @app.route("/api/sensor_data", methods=["POST"])
@@ -90,5 +73,4 @@ def main(path):
 
 
 if __name__ == "__main__":
-
-    app.run(debug=True, host=ip["address"])
+    app.run(debug=True)
